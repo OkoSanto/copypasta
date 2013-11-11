@@ -87,32 +87,46 @@ ofMesh spirali() {
 	}
 
 	// for each i,j create rectangular face (i,j) -> (i,j+1) -> (i+1, j+1) -> (i+1, j),
-	// using 2 triangles
+	// using 2 triangles.  Store normal for each face to compute vertex normals.
 	const int NPOINTS = (IMAX+1)*(JMAX+1);
-	for (int i=0; i<IMAX; ++i) {
+	vector<ofVec3f> surfaceNormals;
+	for (int i=0; i<=IMAX; ++i) {
 		for (int j=0; j<JMAX; ++j) {
-			int n0 = (i*(JMAX+1) + j) %NPOINTS;
+			int n0 = (i*(JMAX+1) + j);
 			int n1 = (n0 + 1) %NPOINTS;
 			int n2 = (n1 + (JMAX+1)) %NPOINTS;
 			int n3 = (n0 + (JMAX+1)) %NPOINTS;
 
-			mesh.addIndex(n0);
-			mesh.addIndex(n1);
-			mesh.addIndex(n2);
-
-			mesh.addIndex(n0);
-			mesh.addIndex(n2);
-			mesh.addIndex(n3);
+			mesh.addTriangle(n0,n1,n2);
+			mesh.addTriangle(n0,n2,n3);
 
 			ofVec3f vec0 = mesh.getVertex(n0);
 			ofVec3f vec01 = mesh.getVertex(n1)-vec0;
 			ofVec3f vec02 = mesh.getVertex(n2)-vec0;
 
-			ofVec3f normal = vec01.crossed(vec02);
-			normal.normalize();
-			mesh.addNormal(normal);
+			surfaceNormals.push_back(vec01.crossed(vec02).normalize());
 
 		}
+	}
+
+	// set vertex normal to the average of the surrounding surface normals:
+	// surfaceNormals: (IMAX+1)x(JMAX)
+	const int NNORMALS = surfaceNormals.size();
+	for (int i=1; i<=IMAX; ++i) {
+			int lowright = i*JMAX;
+			int topright = (lowright - JMAX + NNORMALS) %NNORMALS;
+			mesh.addNormal(((surfaceNormals[lowright] + surfaceNormals[topright])/2).normalize());
+			for (int j=1; j<JMAX; ++j) {
+				int lowright = i*(JMAX) + j;
+				int topright = (lowright - JMAX + NNORMALS) % NNORMALS;
+				int topleft = topright - 1;
+				int lowleft = lowright -1;
+				mesh.addNormal(((surfaceNormals[lowright] + surfaceNormals[topright]
+				                 + surfaceNormals[topleft] + surfaceNormals[lowleft])/4).normalize());
+			}
+			int lowleft = (i+1)*JMAX-1;
+			int topleft = (lowleft - JMAX + NNORMALS) %NNORMALS;
+			mesh.addNormal(((surfaceNormals[lowleft] + surfaceNormals[topleft])/2).normalize());
 	}
 
 	return mesh;
