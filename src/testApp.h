@@ -22,6 +22,7 @@ class testApp : public ofBaseApp{
 		vector<ofMesh> meshes;
 		vector<ofMesh>::iterator curMesh;
 
+		ofLight fixedlight;
 		ofLight spotlight;
 		ofEasyCam cam;
 

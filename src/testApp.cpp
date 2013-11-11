@@ -10,7 +10,7 @@ ofMesh buccoli() {
 
 	for (int i=0; i<=200; ++i) {
 		for (int j=0; j<= 25; ++j) {
-			float y = (.7 + .2*sin(21.*j/250. * PI))*cos(i/20. * PI); // roughly +/- 0.7
+			float y = (.7 + .2*sin(21.*j/250. * PI))*cos(i/20. * PI);
 			float x = 39.*i/1000. + 1.5*sin(j/50. * PI) - 39./10 - .75;
 			float z = (.7 + .2*sin(21.*j/250. *PI))*sin(-i/20. *PI);
 				mesh.addVertex(ofVec3f(100*x,100*y,100*z));
@@ -71,31 +71,30 @@ ofMesh spirali() {
 	ofMesh mesh;
 
 	mesh.setMode(OF_PRIMITIVE_TRIANGLES);
-	//mesh.setMode(OF_PRIMITIVE_POINTS);
 
-	const int IMAX = 100;
+	const int DIM_I = 100;
 	const int JMAX = 120;
 
-	for (int i=0; i<=IMAX; ++i) {
-		for (int j=0; j<=JMAX; ++j) {
+	for (int j=0; j<=JMAX; ++j) {
+		for (int i=0; i<DIM_I; ++i) {
 			float a = 2.5 + 2.*cos(PI * i/50.)+0.1*cos(PI * i/5.);
 			float z = a*cos(PI * j/30.);
 			float y = a*sin(PI * j/30.);
-			float x = -12.5 + 2.5 + 2*sin(PI * i/50.) + 0.1*sin(PI * i/5.) + j/6.;
+			float x = -12.5 + 2.5 + 2.*sin(PI * i/50.) + 0.1*sin(PI * i/5.) + j/6.;
 			mesh.addVertex(ofVec3f(50*x, 50*y, 50*z));
 		}
 	}
 
-	// for each i,j create rectangular face (i,j) -> (i,j+1) -> (i+1, j+1) -> (i+1, j),
-	// using 2 triangles.  Store normal for each face to compute vertex normals.
-	const int NPOINTS = (IMAX+1)*(JMAX+1);
+	// for each j,i create face (j,i) -> (j,i+1) -> (j+1, i+1) -> (j+1, i),
+	// using 2 triangles.  Store normal of first rectangle to compute vertex normals in next step.
 	vector<ofVec3f> surfaceNormals;
-	for (int i=0; i<=IMAX; ++i) {
-		for (int j=0; j<JMAX; ++j) {
-			int n0 = (i*(JMAX+1) + j);
-			int n1 = (n0 + 1) %NPOINTS;
-			int n2 = (n1 + (JMAX+1)) %NPOINTS;
-			int n3 = (n0 + (JMAX+1)) %NPOINTS;
+	for (int j=0; j<JMAX; ++j) {
+		int rowstart = j*DIM_I;
+		for (int i=0; i<DIM_I; ++i) {
+			int n0 = rowstart + i;
+			int n1 = rowstart + (i+1)%(DIM_I);
+			int n2 = n1 + (DIM_I);
+			int n3 = n0 + (DIM_I);
 
 			mesh.addTriangle(n0,n1,n2);
 			mesh.addTriangle(n0,n2,n3);
@@ -110,23 +109,29 @@ ofMesh spirali() {
 	}
 
 	// set vertex normal to the average of the surrounding surface normals:
-	// surfaceNormals: (IMAX+1)x(JMAX)
-	const int NNORMALS = surfaceNormals.size();
-	for (int i=1; i<=IMAX; ++i) {
-			int lowright = i*JMAX;
-			int topright = (lowright - JMAX + NNORMALS) %NNORMALS;
-			mesh.addNormal(((surfaceNormals[lowright] + surfaceNormals[topright])/2).normalize());
-			for (int j=1; j<JMAX; ++j) {
-				int lowright = i*(JMAX) + j;
-				int topright = (lowright - JMAX + NNORMALS) % NNORMALS;
-				int topleft = topright - 1;
-				int lowleft = lowright -1;
-				mesh.addNormal(((surfaceNormals[lowright] + surfaceNormals[topright]
-				                 + surfaceNormals[topleft] + surfaceNormals[lowleft])/4).normalize());
-			}
-			int lowleft = (i+1)*JMAX-1;
-			int topleft = (lowleft - JMAX + NNORMALS) %NNORMALS;
-			mesh.addNormal(((surfaceNormals[lowleft] + surfaceNormals[topleft])/2).normalize());
+	// j=0 boundary vertices
+	for(int i=0; i<DIM_I; ++i) {
+		int lowright = i;
+		int lowleft = (i+DIM_I-1)%(DIM_I);
+		mesh.addNormal(((surfaceNormals[lowright] + surfaceNormals[lowleft])/2).normalize());
+	}
+	// j=1 to j=JMAX-1
+	for(int j=1; j<JMAX; ++j) {
+		int toprow = (j-1)*DIM_I;
+		for(int i=0; i<DIM_I; ++i) {
+			int topright = toprow + i;
+			int topleft = toprow + (i+DIM_I-1)%DIM_I;
+			int lowright = topright + DIM_I;
+			int lowleft = topleft + DIM_I;
+			mesh.addNormal(((surfaceNormals[lowright] + surfaceNormals[topright]
+			                 + surfaceNormals[topleft] + surfaceNormals[lowleft])/4).normalize());
+		}
+	}
+	// j=JMAX boundary vertices
+	for(int i=0; i<DIM_I; ++i) {
+		int topright = (JMAX-1)*(DIM_I) + i;
+		int topleft = (JMAX-1)*(DIM_I) + (i+DIM_I-1)%(DIM_I);
+		mesh.addNormal(((surfaceNormals[topright]+surfaceNormals[topleft])/2.).normalize());
 	}
 
 	return mesh;
@@ -138,11 +143,10 @@ void testApp::setup(){
 
 	ofSetGlobalAmbientColor(ofColor(128,50,50));
 	spotlight.setPointLight();
-//	spotlight.setSpotlight();
-	spotlight.setGlobalPosition(400,400,400);
+	spotlight.setGlobalPosition(-400,400,400);
+	fixedlight.setDiffuseColor(ofColor(100,100,200));
+	fixedlight.setGlobalPosition(400,400,400);
 	spotlight.setDiffuseColor(ofColor(200,200,50));
-//	spotlight.setAmbientColor(ofColor(50,128,50));
-//	setLightOri()
 
 	meshes.push_back(buccoli());
 	meshes.push_back(fiocchiRigati());
@@ -165,11 +169,16 @@ void testApp::update(){
 void testApp::draw(){
 	ofBackgroundGradient(ofColor::gray, ofColor::black, OF_GRADIENT_CIRCULAR);
 
+	fixedlight.enable();
+
 	cam.begin();
 	spotlight.enable();
 	curMesh->draw();
 	spotlight.disable();
 	cam.end();
+
+	fixedlight.disable();
+
 }
 
 //--------------------------------------------------------------
